@@ -1,6 +1,6 @@
 // =========================
 // TELEGRAM OTP BOT (Node.js)
-// UPDATED VERSION
+// FULL UPDATED VERSION (TOP-UP SYSTEM ADDED)
 // =========================
 
 require('dotenv').config();
@@ -16,6 +16,7 @@ app.use(express.json());
 // =========================
 let users = {};
 let pendingPayments = [];
+let userStates = {}; // track user steps
 
 const ADMIN_ID = process.env.ADMIN_ID;
 
@@ -23,6 +24,18 @@ const ADMIN_ID = process.env.ADMIN_ID;
 // SERVICES LIST
 // =========================
 const services = [
+    "Lazada",
+    "Arionplay",
+    "Nustar",
+    "Bigbunny",
+    "Ninogaming",
+    "Bingoplus",
+    "Casinoplus",
+    "GGpanalo",
+    "Viber",
+    "Tiktok",
+    "Jagat",
+    "Playtime",
     "Foodpanda",
     "Telegram",
     "WhatsApp",
@@ -60,7 +73,7 @@ bot.onText(/\/start/, (msg) => {
         reply_markup: {
             keyboard: [
                 ["Buy OTP"],
-                ["Balance"],
+                ["Balance", "Top Up"],
                 ["Help"]
             ],
             resize_keyboard: true
@@ -69,7 +82,7 @@ bot.onText(/\/start/, (msg) => {
 });
 
 // =========================
-// MENU HANDLER
+// MESSAGE HANDLER
 // =========================
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
@@ -81,7 +94,6 @@ bot.on('message', (msg) => {
     // BUY OTP → SHOW SERVICES
     // =========================
     if (text === "Buy OTP") {
-
         const rows = chunkArray(services, 2);
 
         const keyboard = rows.map(row =>
@@ -91,7 +103,7 @@ bot.on('message', (msg) => {
             }))
         );
 
-        bot.sendMessage(chatId, "Which service do you need a number for?", {
+        return bot.sendMessage(chatId, "Which service do you need a number for?", {
             reply_markup: {
                 inline_keyboard: keyboard
             }
@@ -102,32 +114,52 @@ bot.on('message', (msg) => {
     // BALANCE
     // =========================
     if (text === "Balance") {
-        bot.sendMessage(chatId, `Your balance: ${users[chatId].balance}`);
+        return bot.sendMessage(chatId, `💰 Your balance: ${users[chatId].balance}`);
     }
 
     // =========================
     // HELP
     // =========================
     if (text === "Help") {
-        bot.sendMessage(chatId, "Contact admin for support.");
+        return bot.sendMessage(chatId, "Contact admin for support.");
     }
 
     // =========================
-    // HANDLE SCREENSHOT (PAYMENT)
+    // TOP UP BUTTON
     // =========================
-    if (msg.photo) {
-        const fileId = msg.photo[msg.photo.length - 1].file_id;
+    if (text === "Top Up") {
+        userStates[chatId] = "WAITING_PAYMENT";
+
+        return bot.sendMessage(chatId,
+`💰 Top-up Credits:
+
+GCash: 09625699439 (Non-Verified)
+Maya: 09625699439
+
+📸 Send your payment screenshot after sending.`);
+    }
+
+    // =========================
+    // HANDLE PAYMENT NUMBER INPUT
+    // =========================
+    if (userStates[chatId] && userStates[chatId].step === "WAITING_NUMBER") {
+        const paymentNumber = text;
+        const fileId = userStates[chatId].fileId;
 
         pendingPayments.push({
             userId: chatId,
-            fileId
+            fileId,
+            paymentNumber
         });
 
-        bot.sendMessage(chatId, "Payment sent for review.");
+        bot.sendMessage(chatId, "✅ Payment submitted! Waiting for admin approval.");
 
         // Send to admin
         bot.sendPhoto(ADMIN_ID, fileId, {
-            caption: `Payment from ${chatId}`,
+            caption: `💰 Payment Request
+
+User: ${chatId}
+Number Used: ${paymentNumber}`,
             reply_markup: {
                 inline_keyboard: [
                     [
@@ -137,6 +169,23 @@ bot.on('message', (msg) => {
                 ]
             }
         });
+
+        userStates[chatId] = null;
+        return;
+    }
+
+    // =========================
+    // HANDLE SCREENSHOT
+    // =========================
+    if (msg.photo && userStates[chatId] === "WAITING_PAYMENT") {
+        const fileId = msg.photo[msg.photo.length - 1].file_id;
+
+        userStates[chatId] = {
+            step: "WAITING_NUMBER",
+            fileId: fileId
+        };
+
+        return bot.sendMessage(chatId, "📱 Please enter the GCash/Maya number you used to send payment:");
     }
 });
 
@@ -155,19 +204,20 @@ bot.on('callback_query', (query) => {
         const price = 10;
 
         if (users[userId].balance < price) {
+            userStates[userId] = "WAITING_PAYMENT";
+
             bot.sendMessage(userId,
 `❌ Not enough balance.
 
-Send payment first:
+💰 Top-up Credits:
 
-GCash: 09XXXXXXXXX
-Maya: 09XXXXXXXXX
+GCash: 09625699439 (Non-Verified)
+Maya: 09537330643
 
-Then send screenshot here.`);
+📸 Send your payment screenshot after sending.`);
         } else {
             users[userId].balance -= price;
 
-            // TEMP NUMBER (replace with API later)
             const number = "+639XXXXXXXXX";
 
             bot.sendMessage(userId,
@@ -185,6 +235,8 @@ Waiting for OTP...`);
     // =========================
     if (data.startsWith('approve_')) {
         const targetUser = data.split('_')[1];
+
+        if (!users[targetUser]) users[targetUser] = { balance: 0 };
 
         users[targetUser].balance += 10;
 
@@ -212,3 +264,4 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+```
