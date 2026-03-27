@@ -1,42 +1,46 @@
+```js
 // =========================
-// TELEGRAM OTP BOT (RAILWAY FIXED VERSION)
+// TELEGRAM OTP BOT (Node.js)
+// CLEAN & FIXED VERSION
 // =========================
 
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID;
-
-if (!BOT_TOKEN || !ADMIN_ID) {
-    console.error("❌ Missing BOT_TOKEN or ADMIN_ID in .env");
-    process.exit(1);
-}
-
-// ⚠️ FIX: Use polling safely
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
-
+// =========================
+// INIT
+// =========================
+const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const app = express();
 app.use(express.json());
 
 // =========================
-// DATABASE (in-memory)
+// DATABASE (simple in-memory)
 // =========================
 let users = {};
 let pendingPayments = [];
-let userStates = {};
+
+const ADMIN_ID = process.env.ADMIN_ID;
 
 // =========================
-// SERVICES
+// SERVICES LIST
 // =========================
 const services = [
-    "Foodpanda","Telegram","WhatsApp","Tara777",
-    "MoveIt","Joyride","Shein","Grab","Facebook","Nike"
+    "Foodpanda",
+    "Telegram",
+    "WhatsApp",
+    "Tara777",
+    "MoveIt",
+    "Joyride",
+    "Shein",
+    "Grab",
+    "Facebook",
+    "Nike"
 ];
 
 // =========================
-// HELPER
+// HELPER: 2 BUTTONS PER ROW
 // =========================
 function chunkArray(array, size) {
     let result = [];
@@ -47,18 +51,20 @@ function chunkArray(array, size) {
 }
 
 // =========================
-// START
+// START COMMAND
 // =========================
 bot.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
 
-    if (!users[chatId]) users[chatId] = { balance: 0 };
+    if (!users[chatId]) {
+        users[chatId] = { balance: 0 };
+    }
 
     bot.sendMessage(chatId, "Welcome to OTP Bot", {
         reply_markup: {
             keyboard: [
                 ["Buy OTP"],
-                ["Balance", "Top Up"],
+                ["Balance"],
                 ["Help"]
             ],
             resize_keyboard: true
@@ -69,164 +75,146 @@ bot.onText(/\/start/, (msg) => {
 // =========================
 // MESSAGE HANDLER
 // =========================
-bot.on('message', async (msg) => {
-    try {
-        const chatId = msg.chat.id;
-        const text = msg.text || "";
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+    const text = msg.text || "";
 
-        if (!users[chatId]) users[chatId] = { balance: 0 };
+    if (!users[chatId]) users[chatId] = { balance: 0 };
 
-        // BUY OTP
-        if (text === "Buy OTP") {
-            const rows = chunkArray(services, 2);
+    // =========================
+    // BUY OTP → SHOW SERVICES
+    // =========================
+    if (text === "Buy OTP") {
+        const rows = chunkArray(services, 2);
 
-            const keyboard = rows.map(row =>
-                row.map(service => ({
-                    text: service,
-                    callback_data: `service_${service}`
-                }))
-            );
+        const keyboard = rows.map(row =>
+            row.map(service => ({
+                text: service,
+                callback_data: `service_${service}`
+            }))
+        );
 
-            return bot.sendMessage(chatId, "Which service?", {
-                reply_markup: { inline_keyboard: keyboard }
-            });
-        }
+        return bot.sendMessage(chatId, "Which service do you need a number for?", {
+            reply_markup: {
+                inline_keyboard: keyboard
+            }
+        });
+    }
 
-        // BALANCE
-        if (text === "Balance") {
-            return bot.sendMessage(chatId, `💰 Balance: ${users[chatId].balance}`);
-        }
+    // =========================
+    // BALANCE
+    // =========================
+    if (text === "Balance") {
+        return bot.sendMessage(chatId, `Your balance: ${users[chatId].balance}`);
+    }
 
-        // HELP
-        if (text === "Help") {
-            return bot.sendMessage(chatId, "Contact admin.");
-        }
+    // =========================
+    // HELP
+    // =========================
+    if (text === "Help") {
+        return bot.sendMessage(chatId, "Contact admin for support.");
+    }
 
-        // TOP UP
-        if (text === "Top Up") {
-            userStates[chatId] = "WAITING_PAYMENT";
+    // =========================
+    // HANDLE SCREENSHOT (PAYMENT)
+    // =========================
+    if (msg.photo) {
+        const fileId = msg.photo[msg.photo.length - 1].file_id;
 
-            return bot.sendMessage(chatId,
-`💰 Top-up Credits:
+        pendingPayments.push({
+            userId: chatId,
+            fileId
+        });
 
-GCash: 09625699439 (Non-Verified)
-Maya: 09537330643
+        bot.sendMessage(chatId, "Payment sent for review.");
 
-📸 Send screenshot after payment.`);
-        }
-
-        // HANDLE NUMBER INPUT
-        if (userStates[chatId]?.step === "WAITING_NUMBER") {
-            const paymentNumber = text;
-            const fileId = userStates[chatId].fileId;
-
-            pendingPayments.push({ chatId, fileId, paymentNumber });
-
-            await bot.sendMessage(chatId, "✅ Sent for approval.");
-
-            await bot.sendPhoto(ADMIN_ID, fileId, {
-                caption: `Payment\nUser: ${chatId}\nNumber: ${paymentNumber}`,
-                reply_markup: {
-                    inline_keyboard: [[
+        // Send to admin
+        bot.sendPhoto(ADMIN_ID, fileId, {
+            caption: `Payment from ${chatId}`,
+            reply_markup: {
+                inline_keyboard: [
+                    [
                         { text: "Approve", callback_data: `approve_${chatId}` },
                         { text: "Reject", callback_data: `reject_${chatId}` }
-                    ]]
-                }
-            });
-
-            userStates[chatId] = null;
-        }
-
-        // HANDLE PHOTO
-        if (msg.photo && userStates[chatId] === "WAITING_PAYMENT") {
-            const fileId = msg.photo[msg.photo.length - 1].file_id;
-
-            userStates[chatId] = {
-                step: "WAITING_NUMBER",
-                fileId
-            };
-
-            return bot.sendMessage(chatId, "📱 Enter payment number:");
-        }
-
-    } catch (err) {
-        console.error("❌ Message error:", err);
+                    ]
+                ]
+            }
+        });
     }
 });
 
 // =========================
 // CALLBACK HANDLER
 // =========================
-bot.on('callback_query', async (query) => {
-    try {
-        const data = query.data;
-        const userId = query.message.chat.id;
+bot.on('callback_query', (query) => {
+    const data = query.data;
+    const userId = query.message.chat.id;
 
-        if (!users[userId]) users[userId] = { balance: 0 };
+    // =========================
+    // SERVICE SELECTED
+    // =========================
+    if (data.startsWith('service_')) {
+        const service = data.replace('service_', '');
+        const price = 10;
 
-        // SERVICE
-        if (data.startsWith('service_')) {
-            const service = data.replace('service_', '');
-            const price = 10;
-
-            if (users[userId].balance < price) {
-                userStates[userId] = "WAITING_PAYMENT";
-
-                await bot.sendMessage(userId,
+        if (users[userId].balance < price) {
+            bot.sendMessage(userId,
 `❌ Not enough balance.
 
-GCash: 09625699439
-Maya: 09537330643
+Send payment first:
 
-Send screenshot.`);
-            } else {
-                users[userId].balance -= price;
+GCash: 09XXXXXXXXX
+Maya: 09XXXXXXXXX
 
-                await bot.sendMessage(userId,
-`✅ ${service} Number:
-+639XXXXXXXXX
+Then send screenshot here.`);
+        } else {
+            users[userId].balance -= price;
 
-Waiting OTP...`);
-            }
+            const number = "+639XXXXXXXXX";
 
-            return bot.answerCallbackQuery(query.id);
+            bot.sendMessage(userId,
+`✅ Number for ${service}:
+${number}
+
+Waiting for OTP...`);
         }
 
-        // APPROVE
-        if (data.startsWith('approve_')) {
-            const target = data.split('_')[1];
+        bot.answerCallbackQuery(query.id);
+    }
 
-            if (!users[target]) users[target] = { balance: 0 };
+    // =========================
+    // APPROVE PAYMENT
+    // =========================
+    if (data.startsWith('approve_')) {
+        const targetUser = data.split('_')[1];
 
-            users[target].balance += 10;
+        if (!users[targetUser]) users[targetUser] = { balance: 0 };
 
-            await bot.sendMessage(target, "✅ Approved +10");
-            return bot.answerCallbackQuery(query.id);
-        }
+        users[targetUser].balance += 10;
 
-        // REJECT
-        if (data.startsWith('reject_')) {
-            const target = data.split('_')[1];
+        bot.sendMessage(targetUser, "✅ Payment approved! +10 balance");
+        bot.answerCallbackQuery(query.id, { text: "Approved" });
+    }
 
-            await bot.sendMessage(target, "❌ Rejected");
-            return bot.answerCallbackQuery(query.id);
-        }
+    // =========================
+    // REJECT PAYMENT
+    // =========================
+    if (data.startsWith('reject_')) {
+        const targetUser = data.split('_')[1];
 
-    } catch (err) {
-        console.error("❌ Callback error:", err);
+        bot.sendMessage(targetUser, "❌ Payment rejected.");
+        bot.answerCallbackQuery(query.id, { text: "Rejected" });
     }
 });
 
 // =========================
-// ERROR HANDLING
-// =========================
-bot.on("polling_error", (err) => console.error("Polling error:", err));
-
-// =========================
 // EXPRESS SERVER
 // =========================
-app.get('/', (req, res) => res.send('Bot running'));
+app.get('/', (req, res) => {
+    res.send('Bot is running');
+});
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running"));
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
 ```
+
