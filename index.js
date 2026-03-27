@@ -1,4 +1,3 @@
-```js
 // =========================
 // TELEGRAM OTP BOT (Node.js)
 // CLEAN & FIXED VERSION
