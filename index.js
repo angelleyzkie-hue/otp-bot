@@ -1,4 +1,3 @@
-```js
 // =========================
 // TELEGRAM OTP BOT (RAILWAY FIXED VERSION)
 // =========================
