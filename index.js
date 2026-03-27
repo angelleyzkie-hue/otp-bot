@@ -1,3 +1,4 @@
+```js
 // =========================
 // TELEGRAM OTP BOT (Node.js)
 // FULL UPDATED VERSION (TOP-UP SYSTEM ADDED)
@@ -24,18 +25,6 @@ const ADMIN_ID = process.env.ADMIN_ID;
 // SERVICES LIST
 // =========================
 const services = [
-    "Lazada",
-    "Arionplay",
-    "Nustar",
-    "Bigbunny",
-    "Ninogaming",
-    "Bingoplus",
-    "Casinoplus",
-    "GGpanalo",
-    "Viber",
-    "Tiktok",
-    "Jagat",
-    "Playtime",
     "Foodpanda",
     "Telegram",
     "WhatsApp",
@@ -134,7 +123,7 @@ bot.on('message', (msg) => {
 `💰 Top-up Credits:
 
 GCash: 09625699439 (Non-Verified)
-Maya: 09625699439
+Maya: 09537330643
 
 📸 Send your payment screenshot after sending.`);
     }
