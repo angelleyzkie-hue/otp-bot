@@ -1,11 +1,6 @@
 // =========================
 // TELEGRAM OTP BOT (Node.js)
-// Features:
-// - Menu buttons
-// - Manual payment (GCash/Maya/QRPH)
-// - Balance system
-// - Admin panel
-// - Ready for deployment (Railway/Render)
+// UPDATED VERSION
 // =========================
 
 require('dotenv').config();
@@ -23,6 +18,33 @@ let users = {};
 let pendingPayments = [];
 
 const ADMIN_ID = process.env.ADMIN_ID;
+
+// =========================
+// SERVICES LIST
+// =========================
+const services = [
+    "Foodpanda",
+    "Telegram",
+    "WhatsApp",
+    "Tara777",
+    "MoveIt",
+    "Joyride",
+    "Shein",
+    "Grab",
+    "Facebook",
+    "Nike"
+];
+
+// =========================
+// HELPER: 2 BUTTONS PER ROW
+// =========================
+function chunkArray(array, size) {
+    let result = [];
+    for (let i = 0; i < array.length; i += size) {
+        result.push(array.slice(i, i + size));
+    }
+    return result;
+}
 
 // =========================
 // START COMMAND
@@ -55,20 +77,44 @@ bot.on('message', (msg) => {
 
     if (!users[chatId]) users[chatId] = { balance: 0 };
 
+    // =========================
+    // BUY OTP → SHOW SERVICES
+    // =========================
     if (text === "Buy OTP") {
-        bot.sendMessage(chatId,
-`Send payment first:\n\nGCash: 09XXXXXXXXX\nMaya: 09XXXXXXXXX\n\nThen send screenshot here.`);
+
+        const rows = chunkArray(services, 2);
+
+        const keyboard = rows.map(row =>
+            row.map(service => ({
+                text: service,
+                callback_data: `service_${service}`
+            }))
+        );
+
+        bot.sendMessage(chatId, "Which service do you need a number for?", {
+            reply_markup: {
+                inline_keyboard: keyboard
+            }
+        });
     }
 
+    // =========================
+    // BALANCE
+    // =========================
     if (text === "Balance") {
         bot.sendMessage(chatId, `Your balance: ${users[chatId].balance}`);
     }
 
+    // =========================
+    // HELP
+    // =========================
     if (text === "Help") {
         bot.sendMessage(chatId, "Contact admin for support.");
     }
 
-    // HANDLE SCREENSHOT (photo)
+    // =========================
+    // HANDLE SCREENSHOT (PAYMENT)
+    // =========================
     if (msg.photo) {
         const fileId = msg.photo[msg.photo.length - 1].file_id;
 
@@ -95,30 +141,70 @@ bot.on('message', (msg) => {
 });
 
 // =========================
-// ADMIN ACTIONS
+// CALLBACK HANDLER
 // =========================
 bot.on('callback_query', (query) => {
     const data = query.data;
+    const userId = query.message.chat.id;
 
+    // =========================
+    // SERVICE SELECTED
+    // =========================
+    if (data.startsWith('service_')) {
+        const service = data.replace('service_', '');
+        const price = 10;
+
+        if (users[userId].balance < price) {
+            bot.sendMessage(userId,
+`❌ Not enough balance.
+
+Send payment first:
+
+GCash: 09XXXXXXXXX
+Maya: 09XXXXXXXXX
+
+Then send screenshot here.`);
+        } else {
+            users[userId].balance -= price;
+
+            // TEMP NUMBER (replace with API later)
+            const number = "+639XXXXXXXXX";
+
+            bot.sendMessage(userId,
+`✅ Number for ${service}:
+${number}
+
+Waiting for OTP...`);
+        }
+
+        bot.answerCallbackQuery(query.id);
+    }
+
+    // =========================
+    // APPROVE PAYMENT
+    // =========================
     if (data.startsWith('approve_')) {
-        const userId = data.split('_')[1];
+        const targetUser = data.split('_')[1];
 
-        users[userId].balance += 10; // Add credits
+        users[targetUser].balance += 10;
 
-        bot.sendMessage(userId, "Payment approved! +10 balance");
+        bot.sendMessage(targetUser, "✅ Payment approved! +10 balance");
         bot.answerCallbackQuery(query.id, { text: "Approved" });
     }
 
+    // =========================
+    // REJECT PAYMENT
+    // =========================
     if (data.startsWith('reject_')) {
-        const userId = data.split('_')[1];
+        const targetUser = data.split('_')[1];
 
-        bot.sendMessage(userId, "Payment rejected.");
+        bot.sendMessage(targetUser, "❌ Payment rejected.");
         bot.answerCallbackQuery(query.id, { text: "Rejected" });
     }
 });
 
 // =========================
-// EXPRESS SERVER (for hosting)
+// EXPRESS SERVER
 // =========================
 app.get('/', (req, res) => {
     res.send('Bot is running');
@@ -126,44 +212,3 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-
-// =========================
-// PACKAGE.JSON
-// =========================
-/*
-{
-  "name": "otp-bot",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.0.0",
-    "express": "^4.18.2",
-    "node-telegram-bot-api": "^0.61.0"
-  }
-}
-*/
-
-// =========================
-// .ENV FILE
-// =========================
-/*
-BOT_TOKEN=your_bot_token_here
-ADMIN_ID=your_telegram_id_here
-*/
-
-// =========================
-// DEPLOYMENT (Railway)
-// =========================
-/*
-1. Install Git
-2. Upload this project to GitHub
-3. Go to Railway
-4. New Project -> Deploy from GitHub
-5. Add ENV variables:
-   BOT_TOKEN
-   ADMIN_ID
-6. Deploy
-*/
